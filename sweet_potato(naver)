@@ -1,0 +1,71 @@
+from selenium import webdriver
+import chromedriver_autoinstaller
+import time
+import pandas as pd
+from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.common.by import By
+
+chrome_ver = chromedriver_autoinstaller.get_chrome_version().split('.')[0]
+print(chrome_ver)
+
+try:
+    crawler = webdriver.Chrome(f'./{chrome_ver}/chromedriver.exe')
+except:
+    chromedriver_autoinstaller.install(True)
+    crawler = webdriver.Chrome(f'./{chrome_ver}/chromedriver.exe')
+crawler.implicitly_wait(10) # 뜰때까지 10초동안 기다릴거야
+crawler.get('https://www.naver.com/')
+
+# 네이버에서 쇼핑 눌러주기
+crawler.find_element('xpath','//*[@id="NM_FAVORITE"]/div[1]/ul[1]/li[5]/a').click()
+# 식품 누르기
+crawler.find_element('xpath','//*[@id="content"]/div/div[1]/div/div[1]/div/div/div[1]/ul/li[6]/button').click()
+# 채소 누르기
+crawler.find_element('xpath','//*[@id="content"]/div/div[1]/div/div[1]/div/div/div[2]/div[1]/ul/li[3]/a').click()
+# 검색창 클릭
+engine = crawler.find_element('xpath','//*[@id="wrap"]/div[1]/div[2]/div/div[2]/div/div[2]/form/fieldset/div[1]/div/input')
+engine.click()
+engine.send_keys('고구마') # 검색엔진에 입력하고 싶은 키워드 쓰기
+engine.send_keys(Keys.ENTER) # 검색엔진의 엔터를 눌러줘서 검색을 가능하게 해준다.
+
+# 리뷰 많은 순을 클릭하기
+crawler.find_element('xpath','//*[@id="content"]/div[1]/div[1]/div/div[1]/a[4]').click()
+
+names = []
+prices = []
+review_cnts = []
+links = []
+
+for i in range(1,3):
+    crawler.get('https://search.shopping.naver.com/search/all?origQuery=%EA%B3%A0%EA%B5%AC%EB%A7%88&pagingIndex={0}&pagingSize=40&productSet=total&query=%EA%B3%A0%EA%B5%AC%EB%A7%88&sort=review&timestamp=&viewType=list'.format(i))
+    
+    while True:
+        bh = crawler.execute_script('return document.body.scrollHeight') # 브라우저 상의 처음 높이
+        print(bh)
+        time.sleep(4)
+        crawler.execute_script('window.scrollTo(0, document.body.scrollHeight)') # 스크롤 내리기
+        time.sleep(2)
+        ah = crawler.execute_script('return document.body.scrollHeight')
+        if ah == bh:
+            break
+        bh = ah
+    infos = crawler.find_elements(By.CSS_SELECTOR,'.basicList_info_area__TWvzp')
+    for info in infos:
+        try:
+            name = info.find_element(By.CSS_SELECTOR,'.basicList_title__VfX3c').text
+            names.append(name)
+            price = info.find_element(By.CSS_SELECTOR,'.price_num__S2p_v').text
+            prices.append(price)
+            review = info.find_element(By.CSS_SELECTOR,'.basicList_num__sfz3h').text
+            review_cnts.append(review)
+            link = info.find_element(By.CSS_SELECTOR,'a.basicList_link__JLQJf').get_attribute('href')
+            links.append(link)
+        except:
+            print('Expection')
+            crawler.close()
+            
+df = pd.DataFrame({'name': names, 'price': prices, 'review': review_cnts, 'link': links})
+print(df)
+
+# 데이터 프레임을 엑셀(csv)로 저장하는데 utf-8-sig, csv는 sep은 , 로 구분해줘야지 한글깨짐이 없다.
+df.to_csv('./search_sweet_potato1.csv', sep =',', encoding='utf-8-sig')
